@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
     }
 
+    // Check if MongoDB URI is set
+    if (!process.env.MONGODB_URI) {
+      console.error('[REGISTER] MONGODB_URI not configured')
+      return NextResponse.json({ error: 'Database not configured. Please contact admin.' }, { status: 500 })
+    }
+
     await connectDB()
 
     const existing = await User.findOne({ email })
@@ -37,6 +43,7 @@ export async function POST(req: NextRequest) {
     )
   } catch (err) {
     console.error('[REGISTER]', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = err instanceof Error ? err.message : 'Internal server error'
+    return NextResponse.json({ error: `Registration failed: ${errorMessage}` }, { status: 500 })
   }
 }
