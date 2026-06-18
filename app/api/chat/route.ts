@@ -55,8 +55,6 @@ export async function POST(req: NextRequest) {
         HourLog.find({ volunteer: userId, status: 'approved' }).sort({ date: -1 }).limit(5),
       ])
 
-      const totalHours = logs.reduce((sum, l) => sum + l.hours, 0)
-
       contextData = `
 [Volunteer Context]
 Name: ${user?.name}
@@ -85,14 +83,20 @@ Total donations raised: ₹${donationStats[0]?.total ?? 0}
 
     const systemWithContext = `${PANKH_SYSTEM_PROMPT}\n\n${contextData}`
 
+    // Use exact parameters from user's request
     const response = await nvidia.chat.completions.create({
       model: 'meta/llama-3.1-70b-instruct',
-      max_tokens: 500,
-      system: systemWithContext,
-      messages: messages.map((m: any) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      messages: [
+        { role: 'system', content: systemWithContext },
+        ...messages.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+        }))
+      ],
+      temperature: 0.2,
+      top_p: 0.7,
+      max_tokens: 1024,
+      stream: false
     })
 
     const reply = response.choices[0].message.content || ''
