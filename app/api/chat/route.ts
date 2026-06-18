@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { anthropic, PANKH_SYSTEM_PROMPT } from '@/lib/claude'
+import { nvidia, PANKH_SYSTEM_PROMPT } from '@/lib/nvidia'
 import { connectDB } from '@/lib/db'
 import User from '@/models/User'
 import Campaign from '@/models/Campaign'
@@ -34,6 +34,12 @@ export async function POST(req: NextRequest) {
 
     if (!messages?.length) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
+    }
+
+    // Check if NVIDIA API key is configured
+    if (!process.env.NVIDIA_API_KEY) {
+      console.error('[CHAT] NVIDIA_API_KEY not configured')
+      return NextResponse.json({ error: 'AI service not configured. Please contact admin.' }, { status: 500 })
     }
 
     await connectDB()
@@ -79,8 +85,8 @@ Total donations raised: ₹${donationStats[0]?.total ?? 0}
 
     const systemWithContext = `${PANKH_SYSTEM_PROMPT}\n\n${contextData}`
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    const response = await nvidia.chat.completions.create({
+      model: 'meta/llama-3.1-70b-instruct',
       max_tokens: 500,
       system: systemWithContext,
       messages: messages.map((m: any) => ({
@@ -89,11 +95,12 @@ Total donations raised: ₹${donationStats[0]?.total ?? 0}
       })),
     })
 
-    const reply = response.content[0].type === 'text' ? response.content[0].text : ''
+    const reply = response.choices[0].message.content || ''
 
     return NextResponse.json({ reply })
   } catch (err) {
     console.error('[CHAT]', err)
-    return NextResponse.json({ error: 'Pankh is unavailable right now. Please try again.' }, { status: 500 })
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ error: `Pankh encountered an error: ${errorMessage}` }, { status: 500 })
   }
 }
